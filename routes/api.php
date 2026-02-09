@@ -165,6 +165,12 @@ Route::post('/emergency-help', function (Request $request) {
     // Get the closest staff member
     $closestStaff = $sortedStaff->first();
 
+    if (!$closestStaff) {
+        return response()->json([
+            'message' => 'No active staff members found with known location.',
+        ], 404);
+    }
+
     // Log the emergency incident
     $emergency = \App\Models\EmergencyHelp::create([
         'phone' => $victimPhone,
