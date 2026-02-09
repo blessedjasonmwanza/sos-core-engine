@@ -31,8 +31,7 @@ Route::get('/me', [UserController::class, 'me'])
     ->middleware('auth:sanctum');
 Route::post('/update-location', [StaffController::class, 'updateLocation'])
     ->middleware('auth:sanctum');
-Route::get('/active-staffs', [StaffController::class, 'listActiveStaffs'])
-    ->middleware('auth:sanctum');
+Route::get('/active-staffs', [StaffController::class, 'listActiveStaffs']);
 
 Route::get('/emergency_statuses/{id}', [StaffController::class, 'listEmergencyStatuses'])
     ->middleware('auth:sanctum');
@@ -196,7 +195,7 @@ Route::post('/emergency-help', function (Request $request) {
         ],
         'emergency_id' => $emergency->id,
     ], 200);
-})->middleware('auth:sanctum');
+});
 
 
 
