@@ -58,7 +58,22 @@ class StaffController extends Controller
 
 
             //Createas User for Login first
-            $user = User::Create([
+            $existingUser = User::where('phone_number', $validatedData['phone'])
+                ->orWhere(function ($query) use ($validatedData) {
+                    if (!empty($validatedData['email'])) {
+                        $query->where('email', $validatedData['email']);
+                    }
+                })
+                ->first();
+
+            if ($existingUser) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Account with this phone number or email already exists.',
+                ], 409);
+            }
+
+            $user = User::create([
                 'name' => $validatedData['fullName'],
                 'phone_number' => $validatedData['phone'],
                 'email' => $validatedData['email'] ?? NULL,

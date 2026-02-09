@@ -24,5 +24,6 @@ class Staff extends Model implements HasMedia
         'last_known_latitude',
         'last_known_longitude',
        'fcm_token',
+       'password',
     ];
 }
