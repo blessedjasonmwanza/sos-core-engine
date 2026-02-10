@@ -68,12 +68,14 @@ class RegistrationController extends Controller
             $otpExpiresAt = now()->addMinutes(5);
 
             if ($existingUser) {
-                // User exists -> Create GuestLogin record
-                $guestLogin = \App\Models\GuestLogin::create([
-                    'phone_number' => $existingUser->phone_number, // Use the stored number
-                    'otp_code' => $otpCode,
-                    'otp_expires_at' => $otpExpiresAt,
-                ]);
+                // User exists -> Update or Create GuestLogin record
+                $guestLogin = \App\Models\GuestLogin::updateOrCreate(
+                    ['phone_number' => $existingUser->phone_number],
+                    [
+                        'otp_code' => $otpCode,
+                        'otp_expires_at' => $otpExpiresAt,
+                    ]
+                );
 
                 // Send OTP
                 $user = $existingUser;
