@@ -43,7 +43,7 @@ class StaffController extends Controller
 
         try {
             $validatedData = $request->validate([
-                'phone' => 'required|string|max:50|unique:staff,phone',
+                'phone' => 'required|string|max:50',
                 'fullName' => 'required|string|max:255',
                 'email' => 'nullable|string|max:255',
                 'address' => 'required|string|max:1000',
@@ -54,22 +54,21 @@ class StaffController extends Controller
                 'selfie' => 'required|string',
             ]);
 
-
-
-
-            //Createas User for Login first
-            $existingUser = User::where('phone_number', $validatedData['phone'])
-                ->orWhere(function ($query) use ($validatedData) {
-                    if (!empty($validatedData['email'])) {
-                        $query->where('email', $validatedData['email']);
-                    }
-                })
-                ->first();
-
-            if ($existingUser) {
+            // 1. Check for existing User/Staff by Phone
+            if (User::where('phone_number', $validatedData['phone'])->exists()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Account with this phone number or email already exists.',
+                    'message' => 'An account with this phone number already exists.',
+                    'field' => 'phone'
+                ], 409);
+            }
+
+            // 2. Check for existing User/Staff by Email (if provided)
+            if (!empty($validatedData['email']) && User::where('email', $validatedData['email'])->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'An account with this email address already exists.',
+                    'field' => 'email'
                 ], 409);
             }
 
