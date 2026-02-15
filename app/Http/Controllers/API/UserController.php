@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Laravel\Sanctum\PersonalAccessToken;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use App\Models\User;
 use Carbon\Carbon;
 
@@ -48,7 +49,7 @@ class UserController extends Controller
     public function onboard(Request $request)
     {
         try {
-            $request->validate([
+            $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'role' => 'required|string',
                 'medical_info' => 'required|json',
@@ -56,6 +57,13 @@ class UserController extends Controller
                 'license_number' => 'required|string|max:255',
                 'files.*' => 'file|max:2048',
             ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $validator->errors()->first(),
+                ], 422);
+            }
             $accessTokenExpiresAt = Carbon::now()->addDays(7);
             $refreshTokenExpiresAt = Carbon::now()->addDays(14);
             $user = User::create([

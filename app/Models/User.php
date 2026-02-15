@@ -56,4 +56,9 @@ class User extends Authenticatable implements HasMedia
             'password' => 'hashed',
         ];
     }
+
+    public function staff()
+    {
+        return $this->hasOne(Staff::class);
+    }
 }

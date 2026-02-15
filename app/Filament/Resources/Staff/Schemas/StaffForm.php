@@ -14,19 +14,24 @@ class StaffForm
     {
         return $schema
             ->components([
-                TextInput::make('phone')
+                TextInput::make('user.phone_number')
+                    ->label('Phone Number')
                     ->tel()
                     ->required(),
-                TextInput::make('full_name')
+                TextInput::make('user.name')
+                    ->label('Full Name')
                     ->required(),
-                TextInput::make('email')
+                TextInput::make('user.email')
                     ->label('Email address')
                     ->email()
                     ->required(),
                 TextInput::make('address')
                     ->default(null),
-                TextInput::make('password')
-                    ->password(),
+                TextInput::make('user.password')
+                    ->label('Password (Optional on update)')
+                    ->password()
+                    ->dehydrateStateUsing(fn ($state) => !empty($state) ? bcrypt($state) : null)
+                    ->dehydrated(fn ($state) => filled($state)),
                 TextInput::make('hpcz_number')
                     ->default(null),
 

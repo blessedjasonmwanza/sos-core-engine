@@ -16,13 +16,15 @@ class StaffTable
     {
         return $table
             ->columns([
-                TextColumn::make('phone')
+                TextColumn::make('user.phone_number')
+                    ->label('Phone Number')
                     ->badge()
                     ->searchable(),
-                TextColumn::make('full_name')
+                TextColumn::make('user.name')
+                    ->label('Full Name')
                     ->badge()
                     ->searchable(),
-                TextColumn::make('email')
+                TextColumn::make('user.email')
                     ->label('Email address')
                     ->searchable(),
                 TextColumn::make('address')

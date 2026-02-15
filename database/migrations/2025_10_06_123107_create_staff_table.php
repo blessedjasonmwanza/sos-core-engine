@@ -13,16 +13,18 @@ return new class extends Migration
     {
         Schema::create('staff', function (Blueprint $table) {
             $table->id();
-            $table->string('phone')->unique();
-            $table->string('full_name');
-            $table->string('email')->unique();
+            $table->foreignId('user_id')->unique()->constrained()->onDelete('cascade');
             $table->string('address')->nullable();
-            $table->string('password');
             $table->string('hpcz_number')->nullable();
+            $table->string('nrc_number')->nullable();
             $table->string('nrc_uri')->nullable();
             $table->string('selfie_uri')->nullable();
             $table->string('signature_uri')->nullable();
             $table->integer('is_approved')->default(2);
+            $table->boolean('has_accepted_terms_and_conditions')->default(false);
+            $table->decimal('last_known_latitude', 10, 7)->nullable();
+            $table->decimal('last_known_longitude', 10, 7)->nullable();
+            $table->string('fcm_token')->nullable();
             $table->timestamps();
         });
     }

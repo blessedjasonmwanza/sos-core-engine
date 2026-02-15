@@ -240,10 +240,17 @@ class RegistrationController extends Controller
     public function verifyOtp(Request $request)
     {
         try {
-            $request->validate([
+            $validator = Validator::make($request->all(), [
                 'otp_code' => 'required|numeric',
                 'phone_number' => 'required|numeric',
             ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $validator->errors()->first(),
+                ], 422);
+            }
 
             // Normalize phone number
             $phoneInput = $request->phone_number;

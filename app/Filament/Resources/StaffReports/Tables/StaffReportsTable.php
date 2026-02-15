@@ -15,8 +15,8 @@ class StaffReportsTable
     {
         return $table
             ->columns([
-                TextColumn::make('staff.full_name')
-                    ->numeric()
+                TextColumn::make('staff.user.name')
+                    ->label('Staff Name')
                     ->sortable(),
                 TextColumn::make('case_id')
                     ->label('Case ID')

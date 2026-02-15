@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Staff;
+use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -34,29 +35,50 @@ class SignatureController extends Controller
      */
     public function store(Request $request)
     {
-        Log::info('Data from Mobile App - Signature: ' . json_encode($request->all()));
-        $validated = $request->validate([
+        Log::info('Data from Mobile App - Signature: ' . json_encode($request->except(['signature'])));
+        $validator = Validator::make($request->all(), [
             'phone' => 'required|string',
             'signature' => 'nullable|string',
         ]);
 
-        $staff = Staff::where('phone', $validated['phone'])->first();
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
 
-                   // 
-            $uploadedFiles = [];
+        $validated = $validator->validated();
 
-            if ($request->has('signature')) {
+        $user = User::where('phone_number', $validated['phone'])->first();
+        $staff = $user ? $user->staff : null;
+
+        if (!$staff) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Staff record not found for this phone number.'
+            ], 404);
+        }
+
+        $uploadedFiles = [];
+
+        if ($request->has('signature')) {
+            try {
                 $uploadedFiles['signature'] = $this->processBase64File($request->signature, 'signature', $staff->id, ['jpeg', 'png', 'pdf']);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to process signature: ' . $e->getMessage()
+                ], 422);
             }
+        }
 
-
-
-            foreach ($uploadedFiles as $collection => $fileInfo) {
-                $staff->addMedia($fileInfo['path'])
-                    ->toMediaCollection($collection, 'staffs');
-                    $staff->has_accepted_terms_and_conditions = 1;
-                    $staff->save();
-            }
+        foreach ($uploadedFiles as $collection => $fileInfo) {
+            $staff->addMedia($fileInfo['path'])
+                ->toMediaCollection($collection, 'staffs');
+            $staff->has_accepted_terms_and_conditions = 1;
+            $staff->save();
+        }
 
         return response()->json(['success' => true, 'message' => 'Signature saved']);
     }

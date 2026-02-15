@@ -16,10 +16,12 @@ class StaffInfolist
         return $schema
             ->columns(2) // Set up 2-column layout
             ->components([
-                TextEntry::make('phone'),
-                TextEntry::make('full_name'),
-                TextEntry::make('email')
-                    ->label('Email address'),
+                TextEntry::make('user.phone_number')
+                    ->label('Phone Number'),
+                TextEntry::make('user.name')
+                    ->label('Full Name'),
+                TextEntry::make('user.email')
+                    ->label('Email Address'),
                 TextEntry::make('address'),
                 TextEntry::make('hpcz_number'),
                 IconEntry::make('is_approved')

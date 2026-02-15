@@ -42,19 +42,31 @@ Route::post('/onboard', [UserController::class, 'onboard']);
 
 
 Route::post('/update-fcm-token', function (Request $request) {
-    $validated = $request->validate([
+    $validator = Validator::make($request->all(), [
         'fcm_token' => 'required|string',
         'email' => 'required|string|email|max:255',
     ]);
 
-    $staff = Staff::where('email',$request->email)->first();
+    if ($validator->fails()) {
+        return response()->json([
+            'success' => false,
+            'message' => $validator->errors()->first(),
+        ], 422);
+    }
+
+    $validated = $validator->validated();
+
+    $user = User::where('email', $request->email)->first();
+    if (!$user || !$user->staff) {
+        return response()->json(['message' => 'Staff not found'], 404);
+    }
     
-    $staff->update([
+    $user->staff->update([
         'fcm_token' => $validated['fcm_token'],
-        
     ]);
 
     return response()->json([
+        'success' => true,
         'message' => 'FCM token updated successfully',
         'token' => $validated['fcm_token']
     ]);
@@ -102,36 +114,80 @@ Route::post('/forgot-password', function (Request $request) {
 
 
 Route::post('/staff-login', function (Request $request) {
-    $request->validate([
-        'email' => 'required|email',
-        'password' => 'required|string|min:6',
-    ]);
+    try {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'password' => 'required|string|min:6',
+        ]);
 
-    $user = User::where('email', $request->email)->first();
-    $isStaff = Staff::where('email', $request->email)->where('is_approved', 1)->first();
-    if (!$user || !$isStaff || !Hash::check($request->password, $user->password)) {
-        return response()->json(['message' => 'Invalid credentials'], 401);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $validated = $validator->validated();
+
+        $user = User::where('email', $validated['email'])->first();
+        
+        if (!$user || !Hash::check($validated['password'], $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid credentials'
+            ], 401);
+        }
+
+        if (!$user->staff) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account exists, but no associated staff record found.'
+            ], 403);
+        }
+
+        if ((int)$user->staff->is_approved != 1) {
+            $status = $user->staff->is_approved == 2 ? 'pending approval' : 'not approved';
+            return response()->json([
+                'success' => false,
+                'message' => 'Your staff account is currently ' . $status . '.'
+            ], 403);
+        }
+
+        $token = $user->createToken('staff-token')->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Login successful',
+            'token' => $token,
+            'user' => $user
+        ]);
+    } catch (\Throwable $th) {
+        Log::error($th->getMessage());
+        return response()->json([
+            'message' => 'Something went wrong',
+            'error' => $th->getMessage()
+        ], 401);
     }
-
-
-    $token = $user->createToken('staff-token')->plainTextToken;
-
-    return response()->json([
-        'message' => 'Login successful',
-        'token' => $token,
-        'user' => $user
-    ]);
 });
 
 
 // routes/api.php
 Route::post('/emergency-help', function (Request $request) {
-    $validated = $request->validate([
+    $validator = Validator::make($request->all(), [
         'latitude' => 'required|numeric',
         'longitude' => 'required|numeric',
         'phone' => 'required|string',
         'timestamp' => 'required|date',
     ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'success' => false,
+            'message' => $validator->errors()->first(),
+        ], 422);
+    }
+
+    $validated = $validator->validated();
 
     // Get victim's location
     $victimLat = $validated['latitude'];
@@ -166,7 +222,7 @@ Route::post('/emergency-help', function (Request $request) {
 
     if (!$closestStaff) {
         return response()->json([
-            'message' => 'No active staff members found with known location.',
+            'message' => 'No active heath practitioners found with known location.',
         ], 404);
     }
 
@@ -189,8 +245,8 @@ Route::post('/emergency-help', function (Request $request) {
     return response()->json([
         'message' => 'Help request received and closest staff notified via real-time alert',
         'closest_staff' => [
-            'name' => $closestStaff['staff']->full_name,
-            'phone' => $closestStaff['staff']->phone,
+            'name' => $closestStaff['staff']->user->name,
+            'phone' => $closestStaff['staff']->user->phone_number,
             'distance_km' => round($closestStaff['distance_km'], 2),
         ],
         'emergency_id' => $emergency->id,
@@ -233,11 +289,11 @@ function sendEmergencySMS($staff, $emergency, $distance)
             'Authorization' => 'Basic ' . base64_encode(env('TWILIO_SID') . ':' . env('TWILIO_TOKEN'))
         ])->post('https://api.twilio.com/2010-04-01/Accounts/' . env('TWILIO_SID') . '/Messages.json', [
             'From' => env('TWILIO_PHONE_NUMBER'),
-            'To' => $staff->phone,
+            'To' => $staff->user->phone_number,
             'Body' => $message
         ]);
 
-        Log::info("Emergency SMS sent to staff: {$staff->full_name} at {$staff->phone}");
+        Log::info("Emergency SMS sent to staff: {$staff->user->name} at {$staff->user->phone_number}");
     } catch (\Exception $e) {
         Log::error("Failed to send SMS: " . $e->getMessage());
     }

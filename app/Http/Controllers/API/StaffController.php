@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
 
 
@@ -39,10 +40,10 @@ class StaffController extends Controller
     public function store(Request $request)
     {
 
-        Log::info('Data from Mobile App - Personal Details: ' . json_encode($request->all()));
+        Log::info('Data from Mobile App - Personal Details: ' . json_encode($request->except(['nrc', 'selfie'])));
 
         try {
-            $validatedData = $request->validate([
+            $validator = Validator::make($request->all(), [
                 'phone' => 'required|string|max:50',
                 'fullName' => 'required|string|max:255',
                 'email' => 'nullable|string|max:255',
@@ -53,6 +54,15 @@ class StaffController extends Controller
                 'nrc' => 'required|string',
                 'selfie' => 'required|string',
             ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $validator->errors()->first(),
+                ], 422);
+            }
+
+            $validatedData = $validator->validated();
 
             // 1. Check for existing User/Staff by Phone
             if (User::where('phone_number', $validatedData['phone'])->exists()) {
@@ -76,16 +86,14 @@ class StaffController extends Controller
                 'name' => $validatedData['fullName'],
                 'phone_number' => $validatedData['phone'],
                 'email' => $validatedData['email'] ?? NULL,
-                'password' => bcrypt($validatedData['password']),
+                'password' => Hash::needsRehash($validatedData['password']) ? bcrypt($validatedData['password']) : $validatedData['password'],
             ]);
 
             $staff = Staff::create([
-                'phone' => $validatedData['phone'],
-                'full_name' => $validatedData['fullName'],
-                'email' => $validatedData['email'] ?? null,
+                'user_id' => $user->id,
                 'address' => $validatedData['address'],
-                'password' => bcrypt($validatedData['password']),
                 'hpcz_number' => $validatedData['hpczNumber'] ?? null,
+                'nrc_number' => $validatedData['nrcNumber'] ?? null,
                 'is_approved' => 2
             ]);
 
@@ -209,17 +217,28 @@ class StaffController extends Controller
 
     public function updateLocation(Request $request)
     {
-        $request->validate([
+        $validator = Validator::make($request->all(), [
             'email' => 'required|email',
             'latitude' => 'required|numeric',
             'longitude' => 'required|numeric',
             'fcm_token' => 'sometimes|string',
         ]);
 
-        $staff = Staff::where('email', $request->email)->first();
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $user = User::where('email', $request->email)->first();
+        $staff = $user ? $user->staff : null;
 
         if (!$staff) {
-            return response()->json(['message' => 'Staff not found'], 404);
+            return response()->json([
+                'success' => false,
+                'message' => 'Staff record not found for this email address.'
+            ], 404);
         }
 
         $staff->update([
@@ -228,7 +247,10 @@ class StaffController extends Controller
             'fcm_token' => $request->fcm_token ?? $staff->fcm_token,
         ]);
 
-        return response()->json(['message' => 'Location updated successfully']);
+        return response()->json([
+            'success' => true,
+            'message' => 'Location updated successfully'
+        ]);
     }
 
 
@@ -243,7 +265,8 @@ class StaffController extends Controller
         $staffs = Staff::where('is_approved', 1)
             ->whereNotNull('last_known_latitude')
             ->whereNotNull('last_known_longitude')
-            ->select('id', 'full_name', 'phone', 'last_known_latitude', 'last_known_longitude')
+            ->join('users', 'staff.user_id', '=', 'users.id')
+            ->select('staff.id', 'users.name as full_name', 'users.phone_number as phone', 'last_known_latitude', 'last_known_longitude')
             ->get();
 
         return response()->json([
@@ -260,9 +283,7 @@ class StaffController extends Controller
 {
     try {
         // Validate that the staff exists and is approved
-        $userStaff = User::find($staffId);
-
-        $staff = Staff::where('email', $userStaff->email)
+        $staff = Staff::where('user_id', $staffId)
             ->where('is_approved', 1)
             ->first();
 
@@ -334,8 +355,8 @@ class StaffController extends Controller
             'count' => $emergencyStatuses->count(),
             'staff' => [
                 'id' => $staff->id,
-                'full_name' => $staff->full_name,
-                'phone' => $staff->phone,
+                'full_name' => $staff->user->name,
+                'phone' => $staff->user->phone_number,
             ]
         ]);
     } catch (\Exception $e) {
@@ -380,9 +401,10 @@ class StaffController extends Controller
 
             // Verify that the staff member exists and is approved
             $user = User::find($request->staff_id);
-            $staff = \App\Models\Staff::where('email', $user->email)
-                ->where('is_approved', 1)
-                ->first();
+            $staff = $user->staff;
+            if ($staff && $staff->is_approved != 1) {
+                $staff = null;
+            }
 
             if (!$staff) {
                 return response()->json([
